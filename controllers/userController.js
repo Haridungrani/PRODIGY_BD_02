@@ -1,87 +1,99 @@
-const { v4: uuidv4 } = require('uuid');
+// Updated userController.js using MongoDB (Task 2)
+const User = require('../models/User');
 const { isValidUser, isValidEmail } = require('../utils/validate');
 
-const users = new Map();
-
 // CREATE
-const createUser = (req, res) => {
+const createUser = async (req, res) => {
     const { name, email, age } = req.body;
 
     if (!isValidUser(name, email, age)) {
         return res.status(400).json({ error: 'Invalid input fields.' });
     }
 
-    for (let user of users.values()) {
-        if (user.email === email) {
+    try {
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
             return res.status(400).json({ error: 'User already exists with this email.' });
         }
-    }
 
-    const id = uuidv4();
-    const user = { id, name, email, age };
-    users.set(id, user);
-    res.status(201).json(user);
+        const newUser = new User({ name, email, age });
+        await newUser.save();
+        res.status(201).json(newUser);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error.' });
+    }
 };
 
 // READ ALL
-const getAllUsers = (req, res) => {
-    res.json([...users.values()]);
+const getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find();
+        res.json(users);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error.' });
+    }
 };
 
 // READ ONE
-const getUserById = (req, res) => {
-    const user = users.get(req.params.id);
-    if (!user) {
-        return res.status(404).json({ error: 'User not found.' });
+const getUserById = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error.' });
     }
-    res.json(user);
 };
 
 // SEARCH BY EMAIL
-const getUserByEmail = (req, res) => {
-    const targetEmail = req.params.email.toLowerCase();
-
-    for (let user of users.values()) {
-        if (!user.deleted && user.email.toLowerCase() === targetEmail) {
-            return res.json(user);
+const getUserByEmail = async (req, res) => {
+    try {
+        const user = await User.findOne({ email: req.params.email.toLowerCase() });
+        if (!user) {
+            return res.status(404).json({ error: 'User with this email not found.' });
         }
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error.' });
     }
-
-    res.status(404).json({ error: 'User with this email not found.' });
 };
 
-
 // UPDATE
-const updateUser = (req, res) => {
-    const user = users.get(req.params.id);
-    if (!user) {
-        return res.status(404).json({ error: 'User not found.' });
-    }
-
+const updateUser = async (req, res) => {
     const { name, email, age } = req.body;
 
     if (email && !isValidEmail(email)) {
         return res.status(400).json({ error: 'Invalid email format.' });
     }
 
-    if (name) user.name = name;
-    if (email) user.email = email;
-    if (age) user.age = age;
-
-    users.set(req.params.id, user);
-    res.json(user);
+    try {
+        const updatedUser = await User.findByIdAndUpdate(
+            req.params.id,
+            { name, email, age },
+            { new: true }
+        );
+        if (!updatedUser) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        res.json(updatedUser);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error.' });
+    }
 };
 
 // DELETE
-const deleteUser = (req, res) => {
-    const userId = req.params.id;
-
-    if (!users.has(userId)) {
-        return res.status(404).json({ error: 'Cannot delete: User does not exist.' });
+const deleteUser = async (req, res) => {
+    try {
+        const user = await User.findByIdAndDelete(req.params.id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        res.status(200).json({ message: 'User deleted successfully.' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error.' });
     }
-
-    users.delete(userId);
-    res.status(200).json({ message: 'User deleted successfully.' });
 };
 
 module.exports = {
