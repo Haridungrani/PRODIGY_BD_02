@@ -33,6 +33,14 @@ app.use(express.json());
 // Routes
 app.use('/users', userRoutes);
 
+app.use((req, res) => {
+    res.status(404).json({ error: 'Not Found' });
+});
+
+app.get('/', (req, res) => {
+    res.send('Server is running');
+});
+
 // Connect DB and Start Server
 connectDB().then(() => {
     app.listen(PORT, () => {
